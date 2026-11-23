@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AQUALINE — Underground Water Network Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1E2D;
+    --panel:#10283B;
+    --panel-alt:#153048;
+    --grid:#1E3F57;
+    --border:#234A66;
+    --text:#E8F1F5;
+    --muted:#A9C3D4;
+    --label:#DCEAF2;
+    --good:#3ED9A0;
+    --good-dim:#1D5C48;
+    --warn:#F2A93B;
+    --warn-dim:#6B4F1C;
+    --crit:#FF5A4E;
+    --crit-dim:#6E241E;
+    --cyan:#4FC3F7;
+    --north:#4FC3F7;
+    --south:#BA79D1;
+    --east:#45D2D9;
+    --west:#8B93E0;
+    --central:#9FB2C0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    min-height:100vh;
+  }
+  ::selection{ background:var(--cyan); color:#04141F; }
+
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 26px; border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(16,40,59,.9), rgba(16,40,59,.55));
+    backdrop-filter:blur(6px);
+    flex-wrap:wrap; gap:14px;
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand .mark{
+    width:34px;height:34px;border-radius:8px;
+    background:conic-gradient(from 220deg, var(--cyan), var(--good), var(--warn), var(--crit), var(--cyan));
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 0 1px var(--border) inset;
+  }
+  .brand .mark svg{width:18px;height:18px;}
+  .brand h1{
+    font-family:'Space Grotesk',sans-serif; font-size:19px; margin:0; letter-spacing:.5px;
+    font-weight:700;
+  }
+  .brand span.tag{
+    display:block; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted);
+    letter-spacing:1.5px; text-transform:uppercase; margin-top:1px;
+  }
+
+  .hstat{ display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
+  .hstat .item{ font-size:11px; color:var(--muted); text-align:right; }
+  .hstat .item b{ display:block; color:var(--text); font-size:13px; font-weight:600; white-space:nowrap; }
+  .rain-bar{ width:70px; height:6px; background:var(--panel-alt); border-radius:3px; overflow:hidden; margin-top:4px; border:1px solid var(--border); }
+  .rain-fill{ height:100%; background:linear-gradient(90deg, var(--cyan), var(--east)); width:0%; transition:width .6s ease; }
+
+  .controls{
+    display:flex; align-items:center; gap:16px; padding:12px 26px;
+    border-bottom:1px solid var(--border); background:var(--panel);
+    flex-wrap:wrap;
+  }
+  .mode-toggle{
+    display:flex; background:var(--panel-alt); border:1px solid var(--border); border-radius:8px; padding:3px;
+  }
+  .mode-toggle button{
+    border:none; background:transparent; color:var(--muted); font-family:'IBM Plex Mono',monospace;
+    font-size:12px; padding:7px 16px; border-radius:6px; cursor:pointer; letter-spacing:.5px;
+    transition:all .2s ease;
+  }
+  .mode-toggle button.active{ background:var(--cyan); color:#04141F; font-weight:600; }
+
+  .live-controls, .manual-controls{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .hidden{ display:none !important; }
+
+  .controls-divider{ width:1px; align-self:stretch; background:var(--border); }
+  .filter-inline{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .filter-inline-label{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+
+  .slider-wrap{ display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); }
+  input[type=range]{ accent-color:var(--cyan); width:140px; }
+  .pulse-dot{ width:8px;height:8px;border-radius:50%; background:var(--good); box-shadow:0 0 8px var(--good); animation:blink 1.4s infinite; }
+  @keyframes blink{ 0%,100%{opacity:1;} 50%{opacity:.25;} }
+
+  .search-box{ position:relative; width:320px; max-width:60vw; }
+  .search-box input{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:7px; font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+  }
+  .search-box input:focus{ outline:none; border-color:var(--cyan); }
+  .suggestions{
+    position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--panel-alt);
+    border:1px solid var(--border); border-radius:7px; overflow:hidden; z-index:30;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); max-height:220px; overflow-y:auto;
+  }
+  .suggestions div{ padding:8px 12px; font-size:12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .suggestions div:hover{ background:var(--panel); }
+  .suggestions .s-name{ color:var(--text); }
+  .suggestions .s-meta{ color:var(--muted); font-size:10.5px; }
+
+  main{
+    display:grid; grid-template-columns:1fr 380px; gap:0;
+    min-height:calc(100vh - 130px);
+    align-items:stretch;
+  }
+  @media (max-width:980px){ main{ grid-template-columns:1fr; } }
+
+  .map-panel{ padding:18px; position:relative; display:flex; flex-direction:column; gap:14px; min-height:0; }
+  .map-panel > h2{ font-family:'Space Grotesk',sans-serif; font-size:14px; margin:0 0 -6px 2px; color:var(--muted); font-weight:600; letter-spacing:.5px; text-transform:uppercase;}
+  .map-panel section.block h2{ font-family:'Space Grotesk',sans-serif; font-size:13px; margin:0 0 10px 0; color:var(--muted); font-weight:600; letter-spacing:.5px; text-transform:uppercase; }
+  .map-frame{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:6px;
+    flex:0 0 auto;
+  }
+  svg#map{ width:100%; height:auto; display:block; }
+
+  .pipe-line{ stroke-linecap:round; stroke-linejoin:round; fill:none; cursor:pointer; transition:stroke .4s ease, opacity .3s ease; }
+  .pipe-line.dimmed{ opacity:.12 !important; }
+  .pipe-line.selected{ filter:drop-shadow(0 0 5px #fff); }
+  .pipe-line.cond-critical{ animation:pulseLine 1.1s ease-in-out infinite; }
+  @keyframes pulseLine{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
+
+  .node-dot{ stroke-width:2; transition:opacity .3s ease; }
+  .node-dot.dimmed{ opacity:.15; }
+  .node-label{
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:600; fill:var(--label);
+    paint-order:stroke; stroke:var(--panel); stroke-width:3.5px; stroke-linejoin:round; stroke-linecap:round;
+    pointer-events:none;
+  }
+
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; padding:0 4px; }
+  .legend .li{ display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); }
+  .legend .sw{ width:16px; height:4px; border-radius:2px; }
+
+  aside{
+    border-left:1px solid var(--border); background:var(--panel); padding:18px;
+    display:flex; flex-direction:column; gap:20px; min-height:0;
+  }
+  aside h2{ font-family:'Space Grotesk',sans-serif; font-size:13px; margin:0 0 10px 0; color:var(--muted); font-weight:600; letter-spacing:.5px; text-transform:uppercase; }
+  section.block{ flex:0 0 auto; }
+  section.block.grow{ flex:1 1 auto; min-height:110px; display:flex; flex-direction:column; }
+
+  .stat-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .stat-card{ background:var(--panel-alt); border:1px solid var(--border); border-radius:9px; padding:10px 8px; text-align:center; }
+  .stat-card .n{ font-size:22px; font-weight:700; font-family:'Space Grotesk',sans-serif; }
+  .stat-card .l{ font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+  .stat-card.total{ grid-column:1/4; display:flex; align-items:center; justify-content:space-between; padding:10px 14px; }
+  .stat-card.total .n{ font-size:18px; }
+  .dotc{ display:inline-block; width:9px;height:9px;border-radius:50%; margin-right:5px; }
+
+  .filter-group{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{
+    border:1px solid var(--border); background:var(--panel-alt); color:var(--muted);
+    font-size:11px; padding:5px 10px; border-radius:14px; cursor:pointer; font-family:'IBM Plex Mono',monospace;
+    transition:all .15s ease; user-select:none;
+  }
+  .chip.on{ background:var(--cyan); color:#04141F; border-color:var(--cyan); font-weight:600; }
+  .filter-label{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin:8px 0 4px; }
+
+  .list-col-header{ display:flex; justify-content:space-between; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:0 9px 4px; }
+  .pipe-list{ display:flex; flex-direction:column; gap:4px; flex:1 1 auto; min-height:60px; overflow-y:auto; padding-right:2px; }
+  .pipe-row{
+    display:flex; align-items:center; gap:8px;
+    background:var(--panel-alt); border:1px solid var(--border); border-radius:6px; padding:5px 9px;
+    cursor:pointer; font-size:11px;
+  }
+  .pipe-row:hover{ border-color:var(--cyan); }
+  .pipe-row .dotc{ flex-shrink:0; margin-right:0; }
+  .pipe-row .name{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pipe-row .id{ color:var(--muted); font-size:9.5px; white-space:nowrap; flex-shrink:0; }
+  .pipe-row .score{ font-weight:600; flex-shrink:0; min-width:26px; text-align:right; }
+
+  .detail-card{ background:var(--panel-alt); border:1px solid var(--border); border-radius:10px; padding:14px; }
+
+  .info-btn{
+    width:16px; height:16px; border-radius:50%; border:1px solid var(--muted); background:transparent;
+    color:var(--muted); font-size:9.5px; line-height:1; cursor:pointer; display:inline-flex; align-items:center;
+    justify-content:center; padding:0; font-family:'IBM Plex Mono',monospace; text-transform:none; letter-spacing:0;
+  }
+  .info-btn:hover{ border-color:var(--cyan); color:var(--cyan); }
+  .info-popover{
+    position:absolute; top:24px; left:0; z-index:60; background:var(--panel-alt); border:1px solid var(--cyan);
+    border-radius:9px; padding:14px 16px; font-size:11.5px; line-height:1.6; color:var(--text); width:270px;
+    box-shadow:0 12px 34px rgba(0,0,0,.5); text-transform:none; letter-spacing:normal; font-weight:400;
+  }
+  .info-popover h4{ margin:0 0 6px; font-family:'Space Grotesk',sans-serif; font-size:12.5px; color:var(--cyan); font-weight:600; }
+  .info-popover p{ margin:6px 0; }
+  .info-popover ul{ margin:6px 0; padding-left:16px; }
+  .info-popover li{ margin-bottom:4px; }
+  .info-popover .close-x{ position:absolute; top:8px; right:10px; cursor:pointer; color:var(--muted); font-size:12px; }
+  .info-popover .close-x:hover{ color:var(--text); }
+  .detail-card .dhead{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  .detail-card .dname{ font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600; }
+  .detail-card .dsub{ font-size:10.5px; color:var(--muted); margin-top:2px; }
+  .badge{ font-size:10px; padding:3px 9px; border-radius:12px; font-weight:600; letter-spacing:.5px; }
+  .reading-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  .reading-item{ background:var(--panel); border:1px solid var(--border); border-radius:7px; padding:7px 9px; }
+  .reading-item .rl{ font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+  .reading-item .rv{ font-size:14px; font-weight:600; margin-top:2px; }
+  .slider-row{ margin-top:8px; }
+  .slider-row label{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted); }
+  .slider-row input{ width:100%; margin-top:3px; }
+  .apply-btn{
+    width:100%; margin-top:10px; background:var(--cyan); border:none; color:#04141F; font-weight:700;
+    padding:9px; border-radius:7px; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+    letter-spacing:.5px;
+  }
+  .apply-btn:hover{ filter:brightness(1.08); }
+  .empty-note{ font-size:11.5px; color:var(--muted); line-height:1.5; padding:6px 2px; }
+
+  .anomaly-log{ display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-height:60px; overflow-y:auto; margin-bottom:10px; }
+  .anom-row{ display:flex; justify-content:space-between; gap:6px; font-size:10.5px; background:var(--panel-alt); border:1px solid var(--border); border-left:3px solid var(--warn); border-radius:5px; padding:6px 8px; }
+  .anom-row.critical{ border-left-color:var(--crit); }
+  .anom-row .t{ color:var(--muted); }
+  .export-btn{
+    width:100%; background:transparent; border:1px solid var(--cyan); color:var(--cyan); font-weight:600;
+    padding:9px; border-radius:7px; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  }
+  .export-btn:hover{ background:var(--cyan); color:#04141F; }
+  .export-btn:disabled{ opacity:.4; cursor:not-allowed; border-color:var(--border); color:var(--muted); }
+
+  ::-webkit-scrollbar{ width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:3px; }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--panel-alt); border:1px solid var(--cyan); color:var(--text); padding:10px 18px;
+    border-radius:8px; font-size:12px; opacity:0; transition:all .3s ease; pointer-events:none; z-index:99;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(4,20,31,.72); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; z-index:200; padding:20px;
+  }
+  .modal-card{
+    background:var(--panel); border:1px solid var(--cyan); border-radius:14px; padding:22px 24px;
+    width:440px; max-width:100%; max-height:86vh; overflow-y:auto; position:relative;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);
+  }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .modal-head h3{ font-family:'Space Grotesk',sans-serif; font-size:16px; margin:0; color:var(--text); font-weight:700; }
+  .modal-desc{ font-size:11.5px; color:var(--muted); line-height:1.55; margin:0 0 16px; }
+  .cfg-section-label{
+    font-size:10px; color:var(--cyan); text-transform:uppercase; letter-spacing:1px; font-weight:600;
+    margin:18px 0 10px; border-top:1px solid var(--border); padding-top:14px;
+  }
+  .cfg-section-label:first-of-type{ border-top:none; padding-top:0; margin-top:0; }
+  .modal-actions{ display:flex; gap:10px; margin-top:8px; }
+  .modal-actions .export-btn, .modal-actions .apply-btn{ flex:1; margin-top:0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 10.5 5 15a7 7 0 0014 0C19 10.5 12 2 12 2z" fill="#04141F"/></svg></div>
+    <div>
+      <h1>AQUALINE</h1>
+      <span class="tag">Underground Water Network Monitor · Singapore</span>
+    </div>
+  </div>
+  <div class="hstat">
+    <div class="item">Last Scan<b id="lastScan">—</b></div>
+    <div class="item">Rain Intensity<b id="rainVal">0%</b><div class="rain-bar"><div class="rain-fill" id="rainFill"></div></div></div>
+    <div class="item">Anomalies Logged<b id="anomCount">0</b></div>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="mode-toggle">
+    <button id="btnLive" class="active">LIVE</button>
+    <button id="btnManual">MANUAL</button>
+  </div>
+
+  <div class="live-controls" id="liveControls">
+    <div class="pulse-dot"></div>
+    <div class="slider-wrap">
+      <span>Scan interval:</span>
+      <input type="range" id="intervalSlider" min="1" max="10" value="3">
+      <span id="intervalLabel">3s</span>
+    </div>
+  </div>
+
+  <div class="manual-controls hidden" id="manualControls">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Search pipe by ID or station name (e.g. Yishun, PW-014)...">
+      <div class="suggestions hidden" id="suggestions"></div>
+    </div>
+  </div>
+
+  <div class="controls-divider"></div>
+
+  <div class="filter-inline">
+    <span class="filter-inline-label">Zone</span>
+    <div class="filter-group" id="areaFilters"></div>
+  </div>
+  <div class="filter-inline">
+    <span class="filter-inline-label">Condition</span>
+    <div class="filter-group" id="conditionFilters"></div>
+  </div>
+</div>
+
+<main>
+  <div class="map-panel">
+    <h2>Network Schematic</h2>
+    <div class="legend">
+      <div class="li"><span class="sw" style="background:var(--good)"></span>Normal</div>
+      <div class="li"><span class="sw" style="background:var(--warn)"></span>Watch — elevated risk factors</div>
+      <div class="li"><span class="sw" style="background:var(--crit)"></span>Critical — likely leak</div>
+      <div class="li"><span class="sw" style="background:var(--north)"></span>North zone node</div>
+      <div class="li"><span class="sw" style="background:var(--south)"></span>South zone node</div>
+      <div class="li"><span class="sw" style="background:var(--east)"></span>East zone node</div>
+      <div class="li"><span class="sw" style="background:var(--west)"></span>West zone node</div>
+      <div class="li"><span class="sw" style="background:var(--central)"></span>Central zone node</div>
+    </div>
+    <div class="map-frame">
+      <svg id="map" viewBox="0 0 900 700" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <section class="block grow">
+      <h2>Anomaly Log</h2>
+      <div class="anomaly-log" id="anomalyLogEl"><div class="empty-note">No anomalies logged yet. Anomalies appear here as sensors detect elevated leak risk.</div></div>
+      <button class="export-btn" id="exportBtn" disabled>⬇ Export anomaly log (.csv)</button>
+    </section>
+  </div>
+
+  <aside>
+    <section class="block">
+      <h2>Condition Summary</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="n" id="cntNormal" style="color:var(--good)">0</div><div class="l">Normal</div></div>
+        <div class="stat-card"><div class="n" id="cntWarn" style="color:var(--warn)">0</div><div class="l">Watch</div></div>
+        <div class="stat-card"><div class="n" id="cntCrit" style="color:var(--crit)">0</div><div class="l">Critical</div></div>
+        <div class="stat-card total"><span style="color:var(--muted); font-size:11px;">Total monitored pipes</span><span class="n" id="cntTotal">0</span></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2 style="display:flex; align-items:center; gap:6px; position:relative;">
+        Selected Pipe
+        <button class="info-btn" id="riskInfoBtn" type="button" aria-label="How is the risk score calculated?">?</button>
+        <button class="info-btn" id="riskEditBtn" type="button" aria-label="Edit risk score logic" title="Edit risk score logic">✎</button>
+        <div class="info-popover hidden" id="riskInfoPopover">
+          <span class="close-x" id="riskInfoClose">✕</span>
+          <h4>How the risk score works</h4>
+          <p>Each pipe gets a 0–100 risk score every scan, combining live sensor readings with the pipe's own equipment profile:</p>
+          <ul>
+            <li><b>Vibration</b> from traffic overhead — up to <span id="infoVibW">30</span> pts</li>
+            <li><b>Moisture</b> above <span id="infoMoistT">65</span>%, especially during heavy rain — up to <span id="infoMoistW">30</span> pts</li>
+            <li><b>Temperature</b> away from <span id="infoTempRef">28</span>°C in the surrounding soil — up to <span id="infoTempW">15</span> pts</li>
+            <li><b>Pressure drop</b> below <span id="infoPressT">4.2</span> bar, a strong sign of an active leak — up to <span id="infoPressW">25</span> pts</li>
+          </ul>
+          <p>Older pipes and higher-risk materials (like cast iron) tend to run higher vibration and lower pressure readings, which feeds into the same four factors.</p>
+          <p><b style="color:var(--good)">0–<span id="infoNormalMax">34</span></b> Normal · <b style="color:var(--warn)"><span id="infoWarnRange">35–64</span></b> Watch · <b style="color:var(--crit)"><span id="infoCritMin">65</span>+</b> Critical</p>
+          <button class="apply-btn" id="openEditFromInfo" style="margin-top:4px;">Edit this logic</button>
+        </div>
+      </h2>
+      <div id="detailWrap"><div class="empty-note">Click a pipe on the map, or use manual search above, to inspect live readings and simulate what-if conditions.</div></div>
+    </section>
+
+    <section class="block grow">
+      <h2>Filtered Pipe List</h2>
+      <div class="list-col-header"><span>Pipe</span><span>Risk Score</span></div>
+      <div class="pipe-list" id="pipeList"></div>
+    </section>
+  </aside>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay hidden" id="riskEditModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Edit Risk Score Logic</h3>
+      <span class="close-x" id="riskEditClose">✕</span>
+    </div>
+    <p class="modal-desc">Adjust how much each sensor factor contributes to a pipe's 0–100 risk score, and where the Normal / Watch / Critical boundaries sit. Nothing changes until you apply.</p>
+
+    <div class="cfg-section-label">Vibration</div>
+    <div class="slider-row">
+      <label><span>Weight (max points)</span><span id="cfgVibWeightVal">30</span></label>
+      <input type="range" id="cfgVibWeight" min="0" max="50" step="1" value="30">
+    </div>
+
+    <div class="cfg-section-label">Moisture / rain seepage</div>
+    <div class="slider-row">
+      <label><span>Weight (max points)</span><span id="cfgMoistWeightVal">30</span></label>
+      <input type="range" id="cfgMoistWeight" min="0" max="50" step="1" value="30">
+    </div>
+    <div class="slider-row">
+      <label><span>Alert threshold (%)</span><span id="cfgMoistThreshVal">65</span></label>
+      <input type="range" id="cfgMoistThresh" min="30" max="90" step="1" value="65">
+    </div>
+
+    <div class="cfg-section-label">Temperature</div>
+    <div class="slider-row">
+      <label><span>Weight (max points)</span><span id="cfgTempWeightVal">15</span></label>
+      <input type="range" id="cfgTempWeight" min="0" max="50" step="1" value="15">
+    </div>
+    <div class="slider-row">
+      <label><span>Reference soil temp (°C)</span><span id="cfgTempRefVal">28</span></label>
+      <input type="range" id="cfgTempRef" min="15" max="35" step="1" value="28">
+    </div>
+
+    <div class="cfg-section-label">Pressure</div>
+    <div class="slider-row">
+      <label><span>Weight (max points)</span><span id="cfgPressWeightVal">25</span></label>
+      <input type="range" id="cfgPressWeight" min="0" max="50" step="1" value="25">
+    </div>
+    <div class="slider-row">
+      <label><span>Alert threshold (bar)</span><span id="cfgPressThreshVal">4.2</span></label>
+      <input type="range" id="cfgPressThresh" min="2" max="6" step="0.1" value="4.2">
+    </div>
+
+    <div class="cfg-section-label">Condition boundaries</div>
+    <div class="slider-row">
+      <label><span>Normal / Watch boundary (score)</span><span id="cfgNormalMaxVal">35</span></label>
+      <input type="range" id="cfgNormalMax" min="10" max="60" step="1" value="35">
+    </div>
+    <div class="slider-row">
+      <label><span>Watch / Critical boundary (score)</span><span id="cfgWarningMaxVal">65</span></label>
+      <input type="range" id="cfgWarningMax" min="40" max="95" step="1" value="65">
+    </div>
+
+    <div class="modal-actions">
+      <button class="export-btn" id="cfgResetBtn">Reset to defaults</button>
+      <button class="apply-btn" id="cfgApplyBtn">Apply &amp; rescore all pipes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------- Network topology (MRT-style schematic) ----------
+  const NODES = {
+    WDL:{x:340,y:60,label:"Woodlands",area:"north",dx:-6,dy:-16},
+    SBW:{x:450,y:45,label:"Sembawang",area:"north",dx:6,dy:-14},
+    YIS:{x:400,y:110,label:"Yishun",area:"north",dx:-58,dy:4},
+    AMK:{x:490,y:140,label:"Ang Mo Kio",area:"north",dx:10,dy:-6},
+    PGL:{x:660,y:85,label:"Punggol",area:"north",dx:10,dy:-8},
+    SKG:{x:600,y:140,label:"Sengkang",area:"north",dx:10,dy:-8},
+
+    CCK:{x:140,y:200,label:"Choa Chu Kang",area:"west",dx:-104,dy:4},
+    BKP:{x:230,y:230,label:"Bukit Panjang",area:"west",dx:-104,dy:4},
+    JUR:{x:110,y:330,label:"Jurong East",area:"west",dx:-90,dy:4},
+    CLE:{x:210,y:380,label:"Clementi",area:"west",dx:-78,dy:4},
+    BKB:{x:170,y:270,label:"Bukit Batok",area:"west",dx:-98,dy:4},
+    TUA:{x:40,y:430,label:"Tuas",area:"west",dx:12,dy:4},
+
+    BIS:{x:460,y:225,label:"Bishan",area:"central",dx:10,dy:-6},
+    TPY:{x:430,y:275,label:"Toa Payoh",area:"central",dx:10,dy:-6},
+    NOV:{x:400,y:335,label:"Novena",area:"central",dx:-72,dy:4},
+    NEW:{x:375,y:390,label:"Newton",area:"central",dx:-66,dy:4},
+    ORC:{x:355,y:440,label:"Orchard",area:"central",dx:-66,dy:4},
+    CTH:{x:430,y:480,label:"City Hall",area:"central",dx:10,dy:4},
+
+    SER:{x:600,y:225,label:"Serangoon",area:"east",dx:10,dy:-6},
+    HGN:{x:650,y:180,label:"Hougang",area:"east",dx:10,dy:-6},
+    TAM:{x:750,y:265,label:"Tampines",area:"east",dx:10,dy:4},
+    PSR:{x:800,y:195,label:"Pasir Ris",area:"east",dx:10,dy:-6},
+    BED:{x:780,y:345,label:"Bedok",area:"east",dx:10,dy:4},
+    CHG:{x:860,y:285,label:"Changi",area:"east",dx:-18,dy:22},
+
+    QUT:{x:300,y:525,label:"Queenstown",area:"south",dx:-100,dy:4},
+    BKM:{x:355,y:565,label:"Bukit Merah",area:"south",dx:-104,dy:16},
+    TGB:{x:385,y:520,label:"Tiong Bahru",area:"south",dx:10,dy:-6},
+    MRB:{x:485,y:565,label:"Marina Bay",area:"south",dx:10,dy:4},
+    SEN:{x:420,y:645,label:"Sentosa",area:"south",dx:-14,dy:22},
+    HBF:{x:350,y:615,label:"HarbourFront",area:"south",dx:-118,dy:6}
+  };
+
+  const EDGES = [
+    ["WDL","SBW"],["SBW","YIS"],["YIS","AMK"],["WDL","YIS"],["AMK","SKG"],["SKG","PGL"],
+    ["AMK","BIS"],
+    ["CCK","BKP"],["BKP","BKB"],["BKB","JUR"],["JUR","CLE"],["JUR","TUA"],
+    ["BKP","WDL"],
+    ["CLE","ORC"],["CLE","QUT"],
+    ["BIS","TPY"],["TPY","NOV"],["NOV","NEW"],["NEW","ORC"],["ORC","CTH"],
+    ["TPY","SER"],
+    ["SER","HGN"],["SER","TAM"],["TAM","PSR"],["TAM","BED"],["BED","CHG"],
+    ["HGN","PGL"],
+    ["CTH","MRB"],["CTH","QUT"],["QUT","BKM"],["BKM","TGB"],["TGB","MRB"],["MRB","SEN"],["TGB","HBF"],["HBF","SEN"]
+  ];
+
+  const MATERIALS = ["Cast Iron","Ductile Iron","Steel","PVC"];
+  const MATERIAL_RISK = {"Cast Iron":0.85,"Ductile Iron":0.5,"Steel":0.4,"PVC":0.2};
+  const AREA_COLORS = {north:"var(--north)",south:"var(--south)",east:"var(--east)",west:"var(--west)",central:"var(--central)"};
+  const COND_COLORS = {normal:"#3ED9A0",warning:"#F2A93B",critical:"#FF5A4E"};
+
+  function rand(min,max){ return Math.random()*(max-min)+min; }
+  function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+  function pad(n){ return n.toString().padStart(2,"0"); }
+  function formatScanTime(d){
+    const datePart = d.toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"});
+    return datePart + " · " + d.toLocaleTimeString();
+  }
+
+  // ---------- Build pipe dataset ----------
+  let pipes = EDGES.map((e,i)=>{
+    const a = NODES[e[0]], b = NODES[e[1]];
+    const material = MATERIALS[Math.floor(Math.random()*MATERIALS.length)];
+    const installYear = Math.floor(rand(1985,2023));
+    return {
+      id: "PW-" + String(i+1).padStart(3,"0"),
+      from: e[0], to: e[1],
+      label: a.label + " ↔ " + b.label,
+      area: a.area,
+      material: material,
+      age: 2026 - installYear,
+      stressed: Math.random() < 0.16,
+      reading: null,
+      score: 0,
+      condition: "normal"
+    };
+  });
+
+  let globalRain = rand(0,0.25);
+
+  function baselineRisk(p){
+    const materialRisk = MATERIAL_RISK[p.material];
+    const ageFactor = clamp(p.age/40,0,1);
+    let r = materialRisk*0.5 + ageFactor*0.5;
+    if(p.stressed) r = clamp(r*1.5,0,1);
+    return r;
+  }
+
+  function generateReading(p){
+    const risk = baselineRisk(p);
+    let vibration = clamp(rand(1,3.5) + risk*4.5 + (Math.random()<0.12?rand(2,4.5):0), 0, 10);
+    let moisture = clamp(rand(18,40) + risk*28 + globalRain*30 + (Math.random()<0.15?rand(15,30):0), 0, 100);
+    let temperature = clamp(28 + rand(-3,3) + (Math.random()<0.08?rand(-7,9):0), 12, 45);
+    let pressure = clamp(5.2 - risk*1.4 - globalRain*0.3 - (Math.random()<0.1?rand(0.5,1.8):0) + rand(-0.25,0.25), 0.5, 6.5);
+    return {
+      vibration: +vibration.toFixed(2),
+      moisture: +moisture.toFixed(1),
+      temperature: +temperature.toFixed(1),
+      pressure: +pressure.toFixed(2),
+      timestamp: new Date()
+    };
+  }
+
+  // ---------- Configurable risk-scoring logic ----------
+  const DEFAULT_RISK_CONFIG = {
+    vibWeight: 30, moistWeight: 30, moistThreshold: 65, tempWeight: 15, tempRef: 28,
+    pressWeight: 25, pressThreshold: 4.2, normalMax: 35, warningMax: 65
+  };
+  let riskConfig = {...DEFAULT_RISK_CONFIG};
+
+  function classify(reading){
+    const cfg = riskConfig;
+    const vibScore = (reading.vibration/10) * cfg.vibWeight;
+    const moistDenom = Math.max(100 - cfg.moistThreshold, 5);
+    const moistScore = reading.moisture > cfg.moistThreshold
+      ? ((reading.moisture - cfg.moistThreshold) / moistDenom) * cfg.moistWeight
+      : (reading.moisture / cfg.moistThreshold) * (cfg.moistWeight * 8/30);
+    const tempScore = Math.min(Math.abs(reading.temperature - cfg.tempRef) / 16, 1) * cfg.tempWeight;
+    const pressScore = reading.pressure < cfg.pressThreshold
+      ? ((cfg.pressThreshold - reading.pressure) / 3.2) * cfg.pressWeight
+      : 0;
+    let score = clamp(vibScore + moistScore + tempScore + pressScore, 0, 100);
+    let condition = score < cfg.normalMax ? "normal" : score < cfg.warningMax ? "warning" : "critical";
+    return {score: +score.toFixed(1), condition};
+  }
+
+  // ---------- State ----------
+  let mode = "live";
+  let intervalSec = 3;
+  let liveTimer = null;
+  let selectedPipeId = null;
+  let anomalyLog = [];
+  let areaFilter = new Set(["north","south","east","west","central"]);
+  let condFilter = new Set(["normal","warning","critical"]);
+
+  // ---------- Initial reading pass ----------
+  pipes.forEach(p=>{
+    p.reading = generateReading(p);
+    const c = classify(p.reading);
+    p.score = c.score; p.condition = c.condition;
+  });
+
+  // ---------- Render SVG map ----------
+  const svg = document.getElementById("map");
+  function buildMap(){
+    let html = "";
+    // edges first
+    pipes.forEach(p=>{
+      const a = NODES[p.from], b = NODES[p.to];
+      html += `<line class="pipe-line cond-${p.condition}" data-id="${p.id}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${COND_COLORS[p.condition]}" stroke-width="6"></line>`;
+    });
+    // nodes
+    Object.entries(NODES).forEach(([key,n])=>{
+      html += `<circle class="node-dot" cx="${n.x}" cy="${n.y}" r="6" fill="#0B1E2D" stroke="${AREA_COLORS[n.area]}" data-area="${n.area}"></circle>`;
+      html += `<text class="node-label" x="${n.x + n.dx}" y="${n.y + n.dy}">${n.label}</text>`;
+    });
+    svg.innerHTML = html;
+    attachLineHandlers();
+  }
+
+  function attachLineHandlers(){
+    svg.querySelectorAll(".pipe-line").forEach(el=>{
+      el.addEventListener("click", ()=>{ selectPipe(el.getAttribute("data-id")); });
+    });
+  }
+
+  function updateMapColors(){
+    pipes.forEach(p=>{
+      const el = svg.querySelector(`.pipe-line[data-id="${p.id}"]`);
+      if(!el) return;
+      el.setAttribute("stroke", COND_COLORS[p.condition]);
+      el.classList.remove("cond-normal","cond-warning","cond-critical");
+      el.classList.add("cond-"+p.condition);
+      el.classList.toggle("selected", p.id === selectedPipeId);
+      const areaOk = areaFilter.has(p.area);
+      const condOk = condFilter.has(p.condition);
+      el.classList.toggle("dimmed", !(areaOk && condOk));
+    });
+    svg.querySelectorAll(".node-dot").forEach(el=>{
+      const a = el.getAttribute("data-area");
+      el.classList.toggle("dimmed", !areaFilter.has(a));
+    });
+  }
+
+  // ---------- Stat cards ----------
+  function updateStats(){
+    const c = {normal:0,warning:0,critical:0};
+    pipes.forEach(p=> c[p.condition]++ );
+    document.getElementById("cntNormal").textContent = c.normal;
+    document.getElementById("cntWarn").textContent = c.warning;
+    document.getElementById("cntCrit").textContent = c.critical;
+    document.getElementById("cntTotal").textContent = pipes.length;
+    document.getElementById("anomCount").textContent = anomalyLog.length;
+    document.getElementById("rainVal").textContent = Math.round(globalRain*100)+"%";
+    document.getElementById("rainFill").style.width = Math.round(globalRain*100)+"%";
+  }
+
+  // ---------- Filters ----------
+  const areaFilterEl = document.getElementById("areaFilters");
+  const condFilterEl = document.getElementById("conditionFilters");
+  const AREAS = ["north","south","east","west","central"];
+  const CONDS = ["normal","warning","critical"];
+
+  function buildFilters(){
+    areaFilterEl.innerHTML = AREAS.map(a=>`<div class="chip on" data-area="${a}">${a[0].toUpperCase()+a.slice(1)}</div>`).join("");
+    condFilterEl.innerHTML = CONDS.map(c=>`<div class="chip on" data-cond="${c}">${c[0].toUpperCase()+c.slice(1)}</div>`).join("");
+    areaFilterEl.querySelectorAll(".chip").forEach(chip=>{
+      chip.addEventListener("click", ()=>{
+        const a = chip.getAttribute("data-area");
+        chip.classList.toggle("on");
+        if(chip.classList.contains("on")) areaFilter.add(a); else areaFilter.delete(a);
+        renderPipeList(); updateMapColors();
+      });
+    });
+    condFilterEl.querySelectorAll(".chip").forEach(chip=>{
+      chip.addEventListener("click", ()=>{
+        const c = chip.getAttribute("data-cond");
+        chip.classList.toggle("on");
+        if(chip.classList.contains("on")) condFilter.add(c); else condFilter.delete(c);
+        renderPipeList(); updateMapColors();
+      });
+    });
+  }
+
+  // ---------- Pipe list ----------
+  const pipeListEl = document.getElementById("pipeList");
+  function renderPipeList(){
+    const filtered = pipes.filter(p=> areaFilter.has(p.area) && condFilter.has(p.condition))
+                           .sort((x,y)=> y.score - x.score);
+    if(filtered.length === 0){
+      pipeListEl.innerHTML = `<div class="empty-note">No pipes match the current filters.</div>`;
+      return;
+    }
+    pipeListEl.innerHTML = filtered.map(p=>`
+      <div class="pipe-row" data-id="${p.id}" title="${p.label} · ${p.area} zone · Risk Score ${p.score}">
+        <span class="dotc" style="background:${COND_COLORS[p.condition]}"></span>
+        <span class="name">${p.label}</span>
+        <span class="id">${p.id}</span>
+        <span class="score" style="color:${COND_COLORS[p.condition]}">${p.score}</span>
+      </div>
+    `).join("");
+    pipeListEl.querySelectorAll(".pipe-row").forEach(row=>{
+      row.addEventListener("click", ()=> selectPipe(row.getAttribute("data-id")) );
+    });
+  }
+
+  // ---------- Detail / selection ----------
+  const detailWrap = document.getElementById("detailWrap");
+
+  function selectPipe(id){
+    selectedPipeId = id;
+    renderDetail();
+    updateMapColors();
+  }
+
+  function renderDetail(){
+    const p = pipes.find(x=>x.id===selectedPipeId);
+    if(!p){
+      detailWrap.innerHTML = `<div class="empty-note">Click a pipe on the map, or use manual search above, to inspect live readings and simulate what-if conditions.</div>`;
+      return;
+    }
+    const r = p.reading;
+    const condLabel = p.condition==="normal"?"NORMAL":p.condition==="warning"?"WATCH":"CRITICAL";
+    detailWrap.innerHTML = `
+      <div class="detail-card">
+        <div class="dhead">
+          <div>
+            <div class="dname">${p.label}</div>
+            <div class="dsub">${p.id} · ${p.area} zone · ${p.material}, ${p.age}y</div>
+          </div>
+          <span class="badge" style="background:${COND_COLORS[p.condition]}22; color:${COND_COLORS[p.condition]}; border:1px solid ${COND_COLORS[p.condition]}">${condLabel} · Risk Score ${p.score}</span>
+        </div>
+        <div class="reading-grid">
+          <div class="reading-item"><div class="rl">Vibration</div><div class="rv">${r.vibration} mm/s</div></div>
+          <div class="reading-item"><div class="rl">Moisture</div><div class="rv">${r.moisture}%</div></div>
+          <div class="reading-item"><div class="rl">Temperature</div><div class="rv">${r.temperature}°C</div></div>
+          <div class="reading-item"><div class="rl">Pressure</div><div class="rv">${r.pressure} bar</div></div>
+        </div>
+
+        <div class="slider-row">
+          <label><span>What-if: Vibration</span><span id="wv">${r.vibration}</span></label>
+          <input type="range" id="simVib" min="0" max="10" step="0.1" value="${r.vibration}">
+        </div>
+        <div class="slider-row">
+          <label><span>What-if: Moisture</span><span id="wm">${r.moisture}</span></label>
+          <input type="range" id="simMoist" min="0" max="100" step="1" value="${r.moisture}">
+        </div>
+        <div class="slider-row">
+          <label><span>What-if: Temperature</span><span id="wt">${r.temperature}</span></label>
+          <input type="range" id="simTemp" min="10" max="45" step="0.5" value="${r.temperature}">
+        </div>
+        <div class="slider-row">
+          <label><span>What-if: Pressure</span><span id="wp">${r.pressure}</span></label>
+          <input type="range" id="simPress" min="0.5" max="6.5" step="0.1" value="${r.pressure}">
+        </div>
+        <div style="margin-top:8px; font-size:11px; color:var(--muted);">Projected: <b id="simCond" style="color:${COND_COLORS[p.condition]}">${condLabel} · Risk Score ${p.score}</b></div>
+        <button class="apply-btn" id="applySim">Apply reading to pipe</button>
+      </div>
+    `;
+
+    const simVib = document.getElementById("simVib");
+    const simMoist = document.getElementById("simMoist");
+    const simTemp = document.getElementById("simTemp");
+    const simPress = document.getElementById("simPress");
+    const simCond = document.getElementById("simCond");
+
+    function refreshSim(){
+      document.getElementById("wv").textContent = simVib.value;
+      document.getElementById("wm").textContent = simMoist.value;
+      document.getElementById("wt").textContent = simTemp.value;
+      document.getElementById("wp").textContent = simPress.value;
+      const testReading = {
+        vibration:+simVib.value, moisture:+simMoist.value,
+        temperature:+simTemp.value, pressure:+simPress.value
+      };
+      const c = classify(testReading);
+      const lbl = c.condition==="normal"?"NORMAL":c.condition==="warning"?"WATCH":"CRITICAL";
+      simCond.textContent = lbl + " · Risk Score " + c.score;
+      simCond.style.color = COND_COLORS[c.condition];
+    }
+    [simVib,simMoist,simTemp,simPress].forEach(s=> s.addEventListener("input", refreshSim));
+
+    document.getElementById("applySim").addEventListener("click", ()=>{
+      const newReading = {
+        vibration:+simVib.value, moisture:+simMoist.value,
+        temperature:+simTemp.value, pressure:+simPress.value,
+        timestamp:new Date()
+      };
+      const c = classify(newReading);
+      p.reading = newReading; p.score = c.score; p.condition = c.condition;
+      if(c.condition !== "normal") logAnomaly(p);
+      updateMapColors(); updateStats(); renderPipeList(); renderDetail();
+      showToast(`Manual reading applied to ${p.id}`);
+    });
+  }
+
+  // ---------- Anomaly log ----------
+  const anomalyLogEl = document.getElementById("anomalyLogEl");
+  const exportBtn = document.getElementById("exportBtn");
+
+  function logAnomaly(p){
+    anomalyLog.push({
+      timestamp: p.reading.timestamp,
+      id: p.id, label: p.label, area: p.area, condition: p.condition, score: p.score,
+      vibration: p.reading.vibration, temperature: p.reading.temperature,
+      moisture: p.reading.moisture, pressure: p.reading.pressure,
+      material: p.material, age: p.age,
+      rain: Math.round(globalRain*100)
+    });
+  }
+
+  function renderAnomalyLog(){
+    if(anomalyLog.length === 0){
+      anomalyLogEl.innerHTML = `<div class="empty-note">No anomalies logged yet. Anomalies appear here as sensors detect elevated leak risk.</div>`;
+      exportBtn.disabled = true;
+      return;
+    }
+    exportBtn.disabled = false;
+    const recent = anomalyLog.slice(-25).reverse();
+    anomalyLogEl.innerHTML = recent.map(a=>`
+      <div class="anom-row ${a.condition}">
+        <div><b>${a.id}</b> · ${a.area}<br><span class="t">${a.label}</span></div>
+        <div style="text-align:right"><span class="t">${a.timestamp.toLocaleTimeString()}</span><br><b style="color:${COND_COLORS[a.condition]}">Risk Score ${a.score}</b><br><span class="t">Rain ${a.rain}%</span></div>
+      </div>
+    `).join("");
+  }
+
+  exportBtn.addEventListener("click", ()=>{
+    if(anomalyLog.length === 0) return;
+    const header = ["Timestamp","Pipe ID","Pipe Location","Zone","Condition","Risk Score","Vibration (mm/s)","Temperature (°C)","Moisture (%)","Rain Intensity (%)","Pressure (bar)","Material","Age (years)"];
+    const rows = anomalyLog.map(a=>[
+      a.timestamp.toISOString(), a.id, a.label.replace(/\s*↔\s*/g, " - "), a.area, a.condition, a.score,
+      a.vibration, a.temperature, a.moisture, a.rain, a.pressure, a.material, a.age
+    ]);
+    let csv = header.join(",") + "\n";
+    rows.forEach(r=>{
+      csv += r.map(v=> typeof v === "string" && v.includes(",") ? `"${v}"` : v).join(",") + "\n";
+    });
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const now = new Date();
+    a.href = url;
+    a.download = `aqualine-anomaly-log-${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${anomalyLog.length} anomaly records`);
+  });
+
+  // ---------- Toast ----------
+  let toastTimer = null;
+  function showToast(msg){
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.classList.remove("show"), 2600);
+  }
+
+  // ---------- Live simulation ----------
+  function tick(){
+    globalRain = clamp(globalRain + rand(-0.12,0.12), 0, 1);
+    pipes.forEach(p=>{
+      p.reading = generateReading(p);
+      const c = classify(p.reading);
+      p.score = c.score; p.condition = c.condition;
+      if(c.condition !== "normal") logAnomaly(p);
+    });
+    document.getElementById("lastScan").textContent = formatScanTime(new Date());
+    updateMapColors(); updateStats(); renderPipeList(); renderAnomalyLog();
+    if(selectedPipeId) renderDetail();
+  }
+
+  function startLive(){
+    stopLive();
+    tick();
+    liveTimer = setInterval(tick, intervalSec*1000);
+  }
+  function stopLive(){
+    if(liveTimer){ clearInterval(liveTimer); liveTimer = null; }
+  }
+
+  // ---------- Mode switching ----------
+  const btnLive = document.getElementById("btnLive");
+  const btnManual = document.getElementById("btnManual");
+  const liveControls = document.getElementById("liveControls");
+  const manualControls = document.getElementById("manualControls");
+
+  btnLive.addEventListener("click", ()=>{
+    if(mode === "live") return;
+    mode = "live";
+    btnLive.classList.add("active"); btnManual.classList.remove("active");
+    liveControls.classList.remove("hidden"); manualControls.classList.add("hidden");
+    startLive();
+  });
+  btnManual.addEventListener("click", ()=>{
+    if(mode === "manual") return;
+    mode = "manual";
+    btnManual.classList.add("active"); btnLive.classList.remove("active");
+    manualControls.classList.remove("hidden"); liveControls.classList.add("hidden");
+    stopLive();
+    showToast("Manual mode: search for a pipe to inspect or simulate readings");
+  });
+
+  const intervalSlider = document.getElementById("intervalSlider");
+  const intervalLabel = document.getElementById("intervalLabel");
+  intervalSlider.addEventListener("input", ()=>{
+    intervalSec = +intervalSlider.value;
+    intervalLabel.textContent = intervalSec + "s";
+    if(mode === "live") startLive();
+  });
+
+  // ---------- Search with suggestions ----------
+  const searchInput = document.getElementById("searchInput");
+  const suggestionsEl = document.getElementById("suggestions");
+
+  searchInput.addEventListener("input", ()=>{
+    const q = searchInput.value.trim().toLowerCase();
+    if(q.length === 0){ suggestionsEl.classList.add("hidden"); suggestionsEl.innerHTML=""; return; }
+    const matches = pipes.filter(p=>
+      p.label.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || p.area.includes(q)
+    ).slice(0,7);
+    if(matches.length === 0){
+      suggestionsEl.innerHTML = `<div style="color:var(--muted); cursor:default;">No pipes found</div>`;
+    }else{
+      suggestionsEl.innerHTML = matches.map(p=>`
+        <div data-id="${p.id}">
+          <span class="s-name">${p.label}</span>
+          <span class="s-meta">${p.id} · ${p.area}</span>
+        </div>
+      `).join("");
+      suggestionsEl.querySelectorAll("div[data-id]").forEach(el=>{
+        el.addEventListener("click", ()=>{
+          const p = pipes.find(x=>x.id === el.getAttribute("data-id"));
+          searchInput.value = p.label;
+          suggestionsEl.classList.add("hidden");
+          selectPipe(p.id);
+        });
+      });
+    }
+    suggestionsEl.classList.remove("hidden");
+  });
+
+  document.addEventListener("click", (e)=>{
+    if(!e.target.closest(".search-box")) suggestionsEl.classList.add("hidden");
+  });
+
+  // ---------- Risk score info popover ----------
+  const riskInfoBtn = document.getElementById("riskInfoBtn");
+  const riskInfoPopover = document.getElementById("riskInfoPopover");
+  const riskInfoClose = document.getElementById("riskInfoClose");
+  riskInfoBtn.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    riskInfoPopover.classList.toggle("hidden");
+  });
+  riskInfoClose.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    riskInfoPopover.classList.add("hidden");
+  });
+  document.addEventListener("click", (e)=>{
+    if(!e.target.closest("#riskInfoPopover") && e.target !== riskInfoBtn){
+      riskInfoPopover.classList.add("hidden");
+    }
+  });
+
+  function updateRiskInfoText(){
+    document.getElementById("infoVibW").textContent = riskConfig.vibWeight;
+    document.getElementById("infoMoistT").textContent = riskConfig.moistThreshold;
+    document.getElementById("infoMoistW").textContent = riskConfig.moistWeight;
+    document.getElementById("infoTempRef").textContent = riskConfig.tempRef;
+    document.getElementById("infoTempW").textContent = riskConfig.tempWeight;
+    document.getElementById("infoPressT").textContent = riskConfig.pressThreshold;
+    document.getElementById("infoPressW").textContent = riskConfig.pressWeight;
+    document.getElementById("infoNormalMax").textContent = riskConfig.normalMax - 1;
+    document.getElementById("infoWarnRange").textContent = riskConfig.normalMax + "–" + (riskConfig.warningMax - 1);
+    document.getElementById("infoCritMin").textContent = riskConfig.warningMax;
+  }
+
+  // ---------- Risk logic editor ----------
+  const riskEditBtn = document.getElementById("riskEditBtn");
+  const riskEditModal = document.getElementById("riskEditModal");
+  const riskEditClose = document.getElementById("riskEditClose");
+  const cfgApplyBtn = document.getElementById("cfgApplyBtn");
+  const cfgResetBtn = document.getElementById("cfgResetBtn");
+  const openEditFromInfo = document.getElementById("openEditFromInfo");
+
+  const CFG_FIELDS = [
+    ["cfgVibWeight","vibWeight"], ["cfgMoistWeight","moistWeight"], ["cfgMoistThresh","moistThreshold"],
+    ["cfgTempWeight","tempWeight"], ["cfgTempRef","tempRef"], ["cfgPressWeight","pressWeight"],
+    ["cfgPressThresh","pressThreshold"], ["cfgNormalMax","normalMax"], ["cfgWarningMax","warningMax"]
+  ];
+
+  function syncSlidersFromConfig(){
+    CFG_FIELDS.forEach(([elId,key])=>{
+      document.getElementById(elId).value = riskConfig[key];
+      document.getElementById(elId+"Val").textContent = riskConfig[key];
+    });
+  }
+  CFG_FIELDS.forEach(([elId])=>{
+    document.getElementById(elId).addEventListener("input", (e)=>{
+      document.getElementById(elId+"Val").textContent = e.target.value;
+    });
+  });
+
+  function rescoreAllPipes(){
+    pipes.forEach(p=>{
+      const c = classify(p.reading);
+      p.score = c.score; p.condition = c.condition;
+    });
+    updateMapColors(); updateStats(); renderPipeList();
+    if(selectedPipeId) renderDetail();
+    updateRiskInfoText();
+  }
+
+  function openRiskEditModal(){
+    syncSlidersFromConfig();
+    riskEditModal.classList.remove("hidden");
+  }
+  riskEditBtn.addEventListener("click", (e)=>{ e.stopPropagation(); openRiskEditModal(); });
+  openEditFromInfo.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    riskInfoPopover.classList.add("hidden");
+    openRiskEditModal();
+  });
+  riskEditClose.addEventListener("click", ()=> riskEditModal.classList.add("hidden") );
+  riskEditModal.addEventListener("click", (e)=>{
+    if(e.target === riskEditModal) riskEditModal.classList.add("hidden");
+  });
+
+  cfgApplyBtn.addEventListener("click", ()=>{
+    const draft = {};
+    CFG_FIELDS.forEach(([elId,key])=>{ draft[key] = +document.getElementById(elId).value; });
+    if(draft.normalMax >= draft.warningMax){
+      showToast("Normal boundary must be lower than the Watch/Critical boundary");
+      return;
+    }
+    riskConfig = draft;
+    rescoreAllPipes();
+    riskEditModal.classList.add("hidden");
+    showToast("Risk logic updated — all pipes rescored");
+  });
+
+  cfgResetBtn.addEventListener("click", ()=>{
+    riskConfig = {...DEFAULT_RISK_CONFIG};
+    syncSlidersFromConfig();
+    rescoreAllPipes();
+    showToast("Risk logic reset to defaults");
+  });
+
+  // ---------- Init ----------
+  buildMap();
+  buildFilters();
+  renderPipeList();
+  updateStats();
+  renderAnomalyLog();
+  document.getElementById("lastScan").textContent = formatScanTime(new Date());
+  startLive();
+
+})();
+</script>
+</body>
+</html>
